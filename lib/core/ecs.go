@@ -4,6 +4,8 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+
+	"github.com/Laughs-In-Flowers/holo/lib/util/step"
 )
 
 var (
@@ -52,7 +54,7 @@ type Prioritizer interface {
 
 type System interface {
 	Prioritizer
-	Update(int64) error
+	Update(*step.Step) error
 	Remove(uint64)
 }
 
@@ -69,7 +71,7 @@ type HandleErrorFn func(error)
 type World interface {
 	Add(...System)
 	Systems() []System
-	Update(int64)
+	Update(*step.Step)
 	Remove(uint64)
 }
 
@@ -96,10 +98,10 @@ func (w *world) Systems() []System {
 	return w.systems
 }
 
-func (w *world) Update(dt int64) {
+func (w *world) Update(s *step.Step) {
 	var err error
 	for _, system := range w.systems {
-		err = system.Update(dt)
+		err = system.Update(s)
 		if err != nil {
 			w.hefn(err)
 		}

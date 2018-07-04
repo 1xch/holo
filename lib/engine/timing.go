@@ -1,6 +1,8 @@
 package engine
 
-import "time"
+import (
+	"time"
+)
 
 type FrameFunc func(*frame)
 
@@ -27,6 +29,10 @@ type frame struct {
 }
 
 func newFrame(start, end FrameFunc, fps FPSFunc, conf ...FrameFunc) *frame {
+	switch {
+	case start == nil, end == nil, fps == nil:
+		panic("frame & fps functions cannot be nil")
+	}
 	f := &frame{
 		start:      start,
 		end:        end,
@@ -95,20 +101,19 @@ func MaxLimitFrame(target uint) Frame {
 }
 
 func (f *frame) Start() {
-	if f.start != nil {
-		f.start(f)
-	}
+	f.start(f)
 }
 
 func (f *frame) End() {
-	if f.end != nil {
-		f.end(f)
-	}
+	f.end(f)
 }
 
 func (f *frame) FPS(t time.Duration) (float64, float64, bool) {
-	if f.fps != nil {
-		return f.fps(f, t)
+	return f.fps(f, t)
+}
+
+func frameReport(e *Engine, f Frame) {
+	if fps, pfps, b := f.FPS(1 * time.Second); b {
+		e.Printf("fps: %f / pfps: %f", fps, pfps)
 	}
-	return 0, 0, false
 }
