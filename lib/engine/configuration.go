@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"fmt"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/Laughs-In-Flowers/holo/lib/core"
 	"github.com/Laughs-In-Flowers/log"
@@ -77,6 +79,7 @@ func configure(e *Engine, conf ...Config) error {
 }
 
 func (c *Configuration) Configure() error {
+
 	sort.Sort(c.list)
 
 	err := configure(c.e, c.list...)
@@ -91,13 +94,30 @@ func (c *Configuration) Configured() bool {
 	return c.configured
 }
 
+type confReport struct {
+	h []string
+}
+
+func (c *confReport) Add(s string) {
+	c.h = append(c.h, s)
+}
+
+var r *confReport
+
 var builtIns = []Config{
+	config{-1, eReportInit},
 	config{001, eState},
 	config{002, eDefaults},
 	config{101, eLogger},
 	config{102, eError},
 	config{501, eWorld},
 	config{601, eInner},
+	config{999, eReportEnd},
+}
+
+func eReportInit(e *Engine) error {
+	r = new(confReport)
+	return nil
 }
 
 func eState(e *Engine) error {
@@ -115,6 +135,25 @@ func SetDebug(b bool) Config {
 	return NewConfig(50,
 		func(e *Engine) error {
 			e.debug = b
+			r.Add(fmt.Sprintf("debug is %t", e.debug))
+			return nil
+		})
+}
+
+func SetReportStep(b bool) Config {
+	return NewConfig(50,
+		func(e *Engine) error {
+			e.DebugReportStep = b
+			r.Add(fmt.Sprintf("debug reportStep is %t", e.DebugReportStep))
+			return nil
+		})
+}
+
+func SetReportFrame(b bool) Config {
+	return NewConfig(50,
+		func(e *Engine) error {
+			e.DebugReportFrame = b
+			r.Add(fmt.Sprintf("debug reportFrame is %t", e.DebugReportFrame))
 			return nil
 		})
 }
@@ -129,7 +168,6 @@ func eLogger(e *Engine) error {
 func SetLogger(l log.Logger) Config {
 	return NewConfig(102,
 		func(e *Engine) error {
-			//e.SwapFormatter(log.GetFormatter(k))
 			e.Logger = l
 			return nil
 		})
@@ -149,14 +187,13 @@ func eWorld(e *Engine) error {
 	return nil
 }
 
+type MakeInner func(e *Engine, w core.World) Inner
+
 func eInner(e *Engine) error {
 	if e.inner == nil {
-		var ifn Inner
-		switch {
-		case e.debug:
-			ifn = debugInner(e, e.World)
-		default:
-			ifn = defaultInner(e, e.World)
+		var ifn MakeInner = DefaultInner
+		if e.debug {
+			ifn = DebugInner
 		}
 		return setInner(ifn, e)
 	}
@@ -164,14 +201,51 @@ func eInner(e *Engine) error {
 	return nil
 }
 
-func SetInner(ifn Inner) Config {
-	return NewConfig(500,
+func SetInner(fn MakeInner) Config {
+	return NewConfig(600,
 		func(e *Engine) error {
-			return setInner(ifn, e)
+			return setInner(fn, e)
 		})
 }
 
-func setInner(i Inner, e *Engine) error {
-	e.inner = i
+func setInner(fn MakeInner, e *Engine) error {
+	e.inner = fn(e, e.World)
+	return nil
+}
+
+func SetTickDuration(d string) Config {
+	return NewConfig(500,
+		func(e *Engine) error {
+			dur, err := time.ParseDuration(d)
+			if err != nil {
+				return err
+			}
+			e.TickDuration = dur
+			return nil
+		})
+}
+
+func SetTickValue(v float64) Config {
+	return NewConfig(500,
+		func(e *Engine) error {
+			e.TickIncr = v
+			return nil
+		})
+}
+
+func SetLastTick(v float64) Config {
+	return NewConfig(500,
+		func(e *Engine) error {
+			e.TickEnd = v
+			return nil
+		})
+}
+
+func eReportEnd(e *Engine) error {
+	if len(r.h) > 0 {
+		for _, rc := range r.h {
+			e.Print(rc)
+		}
+	}
 	return nil
 }
